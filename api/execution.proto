@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package sandbox.v1;
+
+option go_package = "github.com/acme/wasm-sandbox-executor/api/sandboxv1";
+
+import "google/protobuf/struct.proto";
+
+// Execute accepts one invocation as the first client event and streams queued,
+// running, and terminal execution snapshots back to the caller.
+service ExecutionService {
+  rpc Execute(stream google.protobuf.Struct) returns (stream google.protobuf.Struct);
+}
