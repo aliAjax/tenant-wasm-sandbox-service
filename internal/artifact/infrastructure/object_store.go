@@ -22,7 +22,9 @@ func (s *MemoryObjectStore) Put(ctx context.Context, key string, value []byte) e
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.objects[key] = value
+	// Store an immutable copy so later mutation of the caller's buffer cannot
+	// rewrite the artifact bytes observed by concurrent Get callers.
+	s.objects[key] = append([]byte(nil), value...)
 	return nil
 }
 func (s *MemoryObjectStore) Get(ctx context.Context, key string) ([]byte, error) {
@@ -30,12 +32,13 @@ func (s *MemoryObjectStore) Get(ctx context.Context, key string) ([]byte, error)
 		return nil, err
 	}
 	s.mu.RLock()
-	defer s.mu.RUnlock()
 	v, ok := s.objects[key]
+	s.mu.RUnlock()
 	if !ok {
 		return nil, ErrObjectNotFound
 	}
-	return v, nil
+	// Return a private copy so callers cannot mutate the stored snapshot.
+	return append([]byte(nil), v...), nil
 }
 func (s *MemoryObjectStore) Delete(ctx context.Context, key string) error {
 	if err := ctx.Err(); err != nil {

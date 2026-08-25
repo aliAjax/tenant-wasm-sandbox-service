@@ -7,6 +7,7 @@ import (
 	cache "github.com/acme/wasm-sandbox-executor/internal/cache/domain"
 	runtime "github.com/acme/wasm-sandbox-executor/internal/runtime/domain"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -17,10 +18,10 @@ type item struct {
 	entry  cache.Entry
 }
 type Memory struct {
-	mu     sync.Mutex
+	mu     sync.RWMutex
 	items  map[cache.Key]item
-	hits   uint64
-	misses uint64
+	hits   atomic.Uint64
+	misses atomic.Uint64
 }
 
 func NewMemory() *Memory { return &Memory{items: map[cache.Key]item{}} }
@@ -28,26 +29,42 @@ func (m *Memory) Get(ctx context.Context, key cache.Key) (runtime.CompiledModule
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	m.mu.Lock()
-	v, ok := m.items[key]
-	m.mu.Unlock()
+	m.mu.RLock()
+	snapshot, ok := m.items[key]
+	m.mu.RUnlock()
 	if !ok {
-		m.misses++
+		m.misses.Add(1)
 		return nil, ErrMiss
 	}
-	if !v.entry.ExpiresAt.IsZero() && time.Now().After(v.entry.ExpiresAt) {
-		delete(m.items, key)
-		m.misses++
+	if !snapshot.entry.ExpiresAt.IsZero() && time.Now().After(snapshot.entry.ExpiresAt) {
+		m.mu.Lock()
+		// Re-check under the write lock: another goroutine may have replaced or
+		// removed the entry while we were waiting. Only evict the exact entry we
+		// snapshotted so that a concurrent Put/Invalidate cannot lose data.
+		current, present := m.items[key]
+		if present && current.entry.ExpiresAt.Equal(snapshot.entry.ExpiresAt) {
+			delete(m.items, key)
+		}
+		m.mu.Unlock()
+		m.misses.Add(1)
 		return nil, ErrMiss
 	}
-	v.entry.Hits++
-	v.entry.LastUsedAt = time.Now().UTC()
-	m.items[key] = v
-	m.hits++
-	if v.entry.Failure != "" {
-		return nil, fmt.Errorf("cached compile failure: %s", v.entry.Failure)
+	m.mu.Lock()
+	// Update access metadata under the write lock. Re-read the entry because a
+	// concurrent Put may have replaced it; only mutate when it is still the one we
+	// observed so the cache statistics and timestamps stay consistent.
+	if current, present := m.items[key]; present && current.entry.ExpiresAt.Equal(snapshot.entry.ExpiresAt) {
+		current.entry.Hits++
+		current.entry.LastUsedAt = time.Now().UTC()
+		m.items[key] = current
+		snapshot = current
 	}
-	return v.module, nil
+	m.mu.Unlock()
+	m.hits.Add(1)
+	if snapshot.entry.Failure != "" {
+		return nil, fmt.Errorf("cached compile failure: %s", snapshot.entry.Failure)
+	}
+	return snapshot.module, nil
 }
 func (m *Memory) Put(ctx context.Context, key cache.Key, module runtime.CompiledModule, ttl time.Duration) error {
 	if err := ctx.Err(); err != nil {
@@ -82,26 +99,21 @@ func (m *Memory) InvalidateTenant(ctx context.Context, tenant string) int {
 		return 0
 	}
 	m.mu.Lock()
-	keys := make([]cache.Key, 0)
+	defer m.mu.Unlock()
+	n := 0
 	for k := range m.items {
 		if k.TenantID == tenant {
-			keys = append(keys, k)
+			delete(m.items, k)
+			n++
 		}
-	}
-	m.mu.Unlock()
-	n := 0
-	for _, k := range keys {
-		delete(m.items, k)
-		n++
 	}
 	return n
 }
 func (m *Memory) Stats() cache.Stats {
-	m.mu.Lock()
-	items := m.items
-	m.mu.Unlock()
-	s := cache.Stats{Entries: len(items), Hits: m.hits, Misses: m.misses}
-	for _, v := range items {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	s := cache.Stats{Entries: len(m.items), Hits: m.hits.Load(), Misses: m.misses.Load()}
+	for _, v := range m.items {
 		if v.entry.Failure != "" {
 			s.Failures++
 		}
