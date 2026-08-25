@@ -25,7 +25,7 @@ func writeError(w http.ResponseWriter, r *http.Request, status int, code string,
 }
 func classify(err error) (int, string) {
 	switch {
-	case err == module.ErrNotFound, err == execution.ErrNotFound:
+	case errors.Is(err, module.ErrNotFound), errors.Is(err, execution.ErrNotFound):
 		return http.StatusNotFound, "not_found"
 	case errors.Is(err, module.ErrInvalidDigest), errors.Is(err, module.ErrIncompatibleABI), errors.Is(err, module.ErrInvalidTransition):
 		return http.StatusUnprocessableEntity, "invalid_module"

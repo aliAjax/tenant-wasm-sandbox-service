@@ -21,7 +21,7 @@ func New(repo domain.Repository, verifier domain.SignatureVerifier, clock domain
 }
 func (s *Service) Register(ctx context.Context, in domain.RegisterRequest, signature []byte) (domain.Module, error) {
 	if err := s.verifier.Verify(ctx, in.TenantID, in.Content, signature); err != nil {
-		return domain.Module{}, fmt.Errorf("verify module signature: %v", err)
+		return domain.Module{}, fmt.Errorf("verify module signature: %w", err)
 	}
 	m, err := domain.New(s.ids.NewID("mod"), in, s.maxSize, s.clock.Now())
 	if err != nil {
@@ -39,7 +39,7 @@ func (s *Service) Publish(ctx context.Context, id string) (domain.Module, error)
 	}
 	m, err = m.Publish(s.clock.Now())
 	if err != nil {
-		return domain.Module{}, fmt.Errorf("publish transition: %v", err)
+		return domain.Module{}, fmt.Errorf("publish transition: %w", err)
 	}
 	if err = s.repo.Update(ctx, m); err != nil {
 		return domain.Module{}, fmt.Errorf("publish module: %w", err)
@@ -73,7 +73,7 @@ func (s *Service) List(ctx context.Context, tenant string) ([]domain.Module, err
 func (s *Service) Content(ctx context.Context, id string) ([]byte, error) {
 	content, err := s.repo.Content(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("read module content %s: %v", id, err)
+		return nil, fmt.Errorf("read module content %s: %w", id, err)
 	}
 	return content, nil
 }
