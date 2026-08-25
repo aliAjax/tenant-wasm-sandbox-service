@@ -13,32 +13,33 @@ type CapabilityValidator struct {
 }
 
 func (v CapabilityValidator) Validate(candidate module.Module) error {
-	for i := range candidate.ImportList {
-		candidate.ImportList[i] = strings.TrimSpace(candidate.ImportList[i])
-		imported := candidate.ImportList[i]
+	seen := map[string]bool{}
+	for _, raw := range candidate.Capabilities {
+		name := strings.TrimSpace(raw.Name)
+		access := strings.TrimSpace(raw.Access)
+		if name == "" {
+			return fmt.Errorf("capability name is empty")
+		}
+		if seen[name] {
+			return fmt.Errorf("capability %q is duplicated", name)
+		}
+		seen[name] = true
+		if !v.AllowedWASI[name] {
+			return fmt.Errorf("WASI capability %q is not allowed", name)
+		}
+		switch access {
+		case "read", "write", "read-write":
+		default:
+			return fmt.Errorf("capability access %q is invalid", access)
+		}
+	}
+	for _, raw := range candidate.ImportList {
+		imported := strings.TrimSpace(raw)
 		if imported == "" {
 			return fmt.Errorf("import name is empty")
 		}
 		if !v.AllowedImports[imported] {
 			return fmt.Errorf("import %q is not allowed", imported)
-		}
-	}
-	seen := map[string]bool{}
-	for i := range candidate.Capabilities {
-		candidate.Capabilities[i].Name = strings.TrimSpace(candidate.Capabilities[i].Name)
-		candidate.Capabilities[i].Access = strings.TrimSpace(candidate.Capabilities[i].Access)
-		capability := candidate.Capabilities[i]
-		if seen[capability.Name] {
-			return fmt.Errorf("capability %q is duplicated", capability.Name)
-		}
-		seen[capability.Name] = true
-		if !v.AllowedWASI[capability.Name] {
-			return fmt.Errorf("WASI capability %q is not allowed", capability.Name)
-		}
-		switch capability.Access {
-		case "read", "write", "read-write":
-		default:
-			return fmt.Errorf("capability access %q is invalid", capability.Access)
 		}
 	}
 	return nil

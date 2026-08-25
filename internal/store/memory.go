@@ -21,6 +21,16 @@ type snapshot struct {
 	Idempotency map[string]string               `json:"idempotency"`
 }
 
+// cloneModule returns a copy of mod whose slice headers are detached from the
+// caller's backing arrays, so stored data cannot be mutated through shared
+// slices after the value leaves or enters the store.
+func cloneModule(mod moddomain.Module) moddomain.Module {
+	mod.Capabilities = append([]moddomain.Capability(nil), mod.Capabilities...)
+	mod.EnvAllowlist = append([]string(nil), mod.EnvAllowlist...)
+	mod.ImportList = append([]string(nil), mod.ImportList...)
+	return mod
+}
+
 type Memory struct {
 	mu   sync.RWMutex
 	path string
@@ -98,7 +108,7 @@ func (m *Memory) Create(ctx context.Context, mod moddomain.Module, content []byt
 			return fmt.Errorf("module version already exists")
 		}
 	}
-	m.data.Modules[mod.ID] = mod
+	m.data.Modules[mod.ID] = cloneModule(mod)
 	m.data.Contents[mod.ID] = append([]byte(nil), content...)
 	return m.persistLocked()
 }
@@ -111,7 +121,7 @@ func (m *Memory) Update(ctx context.Context, mod moddomain.Module) error {
 	if _, ok := m.data.Modules[mod.ID]; !ok {
 		return moddomain.ErrNotFound
 	}
-	m.data.Modules[mod.ID] = mod
+	m.data.Modules[mod.ID] = cloneModule(mod)
 	return m.persistLocked()
 }
 func (m *Memory) Get(ctx context.Context, id string) (moddomain.Module, error) {
@@ -124,7 +134,7 @@ func (m *Memory) Get(ctx context.Context, id string) (moddomain.Module, error) {
 	if !ok {
 		return moddomain.Module{}, moddomain.ErrNotFound
 	}
-	return v, nil
+	return cloneModule(v), nil
 }
 func (m *Memory) Content(ctx context.Context, id string) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
@@ -147,7 +157,7 @@ func (m *Memory) List(ctx context.Context, tenant string) ([]moddomain.Module, e
 	out := make([]moddomain.Module, 0)
 	for _, v := range m.data.Modules {
 		if tenant == "" || v.TenantID == tenant {
-			out = append(out, v)
+			out = append(out, cloneModule(v))
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
