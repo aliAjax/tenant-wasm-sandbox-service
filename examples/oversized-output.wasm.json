@@ -1,0 +1,9 @@
+{
+  "operation": "echo",
+  "instruction_cost": 1200,
+  "memory_pages": 2,
+  "stack_bytes": 8192,
+  "delay_millis": 0,
+  "output_repeat": 200,
+  "exit_code": 0
+}
