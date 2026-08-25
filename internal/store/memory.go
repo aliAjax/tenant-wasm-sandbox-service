@@ -98,7 +98,7 @@ func (m *Memory) Create(ctx context.Context, mod moddomain.Module, content []byt
 			return fmt.Errorf("module version already exists")
 		}
 	}
-	m.data.Modules[mod.ID] = mod
+	m.data.Modules[mod.ID] = cloneModule(mod)
 	m.data.Contents[mod.ID] = append([]byte(nil), content...)
 	return m.persistLocked()
 }
@@ -111,7 +111,7 @@ func (m *Memory) Update(ctx context.Context, mod moddomain.Module) error {
 	if _, ok := m.data.Modules[mod.ID]; !ok {
 		return moddomain.ErrNotFound
 	}
-	m.data.Modules[mod.ID] = mod
+	m.data.Modules[mod.ID] = cloneModule(mod)
 	return m.persistLocked()
 }
 func (m *Memory) Get(ctx context.Context, id string) (moddomain.Module, error) {
@@ -124,7 +124,7 @@ func (m *Memory) Get(ctx context.Context, id string) (moddomain.Module, error) {
 	if !ok {
 		return moddomain.Module{}, moddomain.ErrNotFound
 	}
-	return v, nil
+	return cloneModule(v), nil
 }
 func (m *Memory) Content(ctx context.Context, id string) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
@@ -147,7 +147,7 @@ func (m *Memory) List(ctx context.Context, tenant string) ([]moddomain.Module, e
 	out := make([]moddomain.Module, 0)
 	for _, v := range m.data.Modules {
 		if tenant == "" || v.TenantID == tenant {
-			out = append(out, v)
+			out = append(out, cloneModule(v))
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
@@ -175,7 +175,7 @@ func (m *Memory) CreateExecution(ctx context.Context, e execdomain.Execution) er
 	if _, ok := m.data.Executions[e.ID]; ok {
 		return fmt.Errorf("execution exists")
 	}
-	m.data.Executions[e.ID] = e
+	m.data.Executions[e.ID] = cloneExecution(e)
 	return m.persistLocked()
 }
 func (m *Memory) UpdateExecution(ctx context.Context, e execdomain.Execution) error {
@@ -187,7 +187,7 @@ func (m *Memory) UpdateExecution(ctx context.Context, e execdomain.Execution) er
 	if _, ok := m.data.Executions[e.ID]; !ok {
 		return execdomain.ErrNotFound
 	}
-	m.data.Executions[e.ID] = e
+	m.data.Executions[e.ID] = cloneExecution(e)
 	return m.persistLocked()
 }
 
@@ -209,7 +209,7 @@ func (r ExecutionRepository) Get(ctx context.Context, id string) (execdomain.Exe
 	if !ok {
 		return execdomain.Execution{}, execdomain.ErrNotFound
 	}
-	return v, nil
+	return cloneExecution(v), nil
 }
 func (r ExecutionRepository) List(ctx context.Context, tenant string, limit int) ([]execdomain.Execution, error) {
 	if err := ctx.Err(); err != nil {
@@ -220,7 +220,7 @@ func (r ExecutionRepository) List(ctx context.Context, tenant string, limit int)
 	out := make([]execdomain.Execution, 0)
 	for _, v := range r.Store.data.Executions {
 		if tenant == "" || v.TenantID == tenant {
-			out = append(out, v)
+			out = append(out, cloneExecution(v))
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
@@ -240,7 +240,7 @@ func (r ExecutionRepository) FindIdempotency(ctx context.Context, tenant, key st
 		return execdomain.Execution{}, false
 	}
 	v, ok := r.Store.data.Executions[id]
-	return v, ok
+	return cloneExecution(v), ok
 }
 func (r ExecutionRepository) SaveIdempotency(ctx context.Context, tenant, key, id string) {
 	if ctx.Err() != nil || key == "" {
