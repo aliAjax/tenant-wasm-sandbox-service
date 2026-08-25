@@ -1,0 +1,147 @@
+openapi: 3.0.3
+info:
+  title: WASM Sandbox Executor API
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+security:
+  - bearerAuth: []
+paths:
+  /healthz:
+    get:
+      security: []
+      responses:
+        "200": {description: Process is alive}
+  /readyz:
+    get:
+      security: []
+      responses:
+        "200": {description: Node accepts work}
+        "503": {description: Node is draining or isolated}
+  /metrics:
+    get:
+      security: []
+      responses:
+        "200": {description: Prometheus metrics}
+  /v1/modules:
+    get:
+      parameters:
+        - {name: tenant_id, in: query, schema: {type: string}}
+      responses:
+        "200": {description: Module list}
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RegisterModule"}
+      responses:
+        "201": {description: Draft module registered}
+        "422": {description: Digest, ABI, or size rejected}
+  /v1/modules/{id}:
+    get:
+      parameters:
+        - {$ref: "#/components/parameters/ID"}
+      responses:
+        "200": {description: Module detail}
+        "404": {description: Module not found}
+  /v1/modules/{id}/publish:
+    post:
+      parameters:
+        - {$ref: "#/components/parameters/ID"}
+      responses:
+        "200": {description: Immutable module published}
+  /v1/modules/{id}/withdraw:
+    post:
+      parameters:
+        - {$ref: "#/components/parameters/ID"}
+      responses:
+        "200": {description: Module withdrawn and cache invalidated}
+  /v1/executions:
+    get:
+      parameters:
+        - {name: tenant_id, in: query, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer, maximum: 500}}
+      responses:
+        "200": {description: Execution list}
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ExecutionRequest"}
+      responses:
+        "202": {description: Execution accepted}
+        "429": {description: Tenant quota exceeded}
+        "503": {description: Node is draining}
+  /v1/executions/{id}:
+    get:
+      parameters:
+        - {$ref: "#/components/parameters/ID"}
+      responses:
+        "200": {description: Execution snapshot}
+        "404": {description: Execution not found}
+  /v1/executions/{id}/cancel:
+    post:
+      parameters:
+        - {$ref: "#/components/parameters/ID"}
+      responses:
+        "200": {description: Cancellation requested}
+  /v1/tenants/{id}/quota:
+    get:
+      parameters:
+        - {$ref: "#/components/parameters/ID"}
+      responses:
+        "200": {description: Quota usage and limits}
+    put:
+      parameters:
+        - {$ref: "#/components/parameters/ID"}
+      responses:
+        "200": {description: Quota updated}
+  /v1/nodes/{id}/drain:
+    post:
+      parameters:
+        - {$ref: "#/components/parameters/ID"}
+      responses:
+        "200": {description: Node begins draining}
+  /v1/cache/recalculate:
+    post:
+      responses:
+        "200": {description: Tenant cache partition invalidated}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer}
+  parameters:
+    ID: {name: id, in: path, required: true, schema: {type: string}}
+  schemas:
+    RegisterModule:
+      type: object
+      required: [tenant_id, name, version, content]
+      properties:
+        tenant_id: {type: string}
+        name: {type: string}
+        version: {type: string}
+        digest: {type: string}
+        entry: {type: string, default: run}
+        abi: {type: string, default: sandbox/v1}
+        content: {type: string, format: byte}
+    ExecutionRequest:
+      type: object
+      required: [tenant_id, module_id, invocation]
+      properties:
+        tenant_id: {type: string}
+        module_id: {type: string}
+        idempotency_key: {type: string}
+        invocation:
+          type: object
+          properties:
+            kind: {type: string, enum: [json, binary, stream]}
+            payload: {type: string, format: byte}
+        budget:
+          type: object
+          properties:
+            max_instructions: {type: integer, format: int64}
+            max_memory_pages: {type: integer}
+            max_stack_bytes: {type: integer, format: int64}
+            timeout: {type: integer, description: Nanoseconds}
+            max_output_bytes: {type: integer}
