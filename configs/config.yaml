@@ -1,0 +1,31 @@
+http:
+  address: ":8080"
+  read_timeout: 5s
+  write_timeout: 10s
+  request_timeout: 6s
+  max_body_bytes: 2097152
+  rate_per_second: 100
+grpc:
+  address: ":9090"
+runtime:
+  version: "sim/v1"
+  max_module_bytes: 1048576
+  max_instructions: 1000000
+  max_memory_pages: 256
+  max_stack_bytes: 2097152
+  max_execution_time: 5s
+  max_output_bytes: 131072
+  cache_ttl: 15m
+tenant:
+  max_concurrent: 2
+  max_cpu_per_minute: 30s
+  max_memory_pages: 256
+storage:
+  state_file: "data/state.json"
+security:
+  api_key: "dev-secret"
+  allow_unsigned_modules: true
+worker:
+  count: 2
+node:
+  id: "node-1"
