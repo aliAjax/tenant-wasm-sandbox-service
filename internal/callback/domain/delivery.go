@@ -49,6 +49,12 @@ func (p RetryPolicy) Delay(attempt int) time.Duration {
 }
 
 func (p RetryPolicy) Wait(ctx context.Context, attempt int) error {
-	time.Sleep(p.Delay(attempt))
-	return ctx.Err()
+	timer := time.NewTimer(p.Delay(attempt))
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }

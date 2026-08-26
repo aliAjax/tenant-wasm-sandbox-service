@@ -37,13 +37,13 @@ func NewWebhook(timeout time.Duration, attempts int) *Webhook {
 	}
 }
 
-func retryableStatus(status int) bool { return status < 200 || status >= 300 }
+func retryableStatus(status int) bool { return status >= 500 && status <= 599 }
 
 func releaseResponse(resp *http.Response) {
 	if resp == nil || resp.Body == nil {
 		return
 	}
-	_, _ = io.CopyN(io.Discard, resp.Body, 1)
+	_, _ = io.Copy(io.Discard, resp.Body)
 	_ = resp.Body.Close()
 }
 
@@ -66,21 +66,25 @@ func (w *Webhook) Deliver(ctx context.Context, e execution.Execution) error {
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := w.client.Do(req)
 		if err == nil {
+			statusOK := resp.StatusCode >= 200 && resp.StatusCode < 300
+			retryable := retryableStatus(resp.StatusCode)
 			releaseResponse(resp)
-			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			if statusOK {
 				return nil
 			}
 			err = &StatusError{StatusCode: resp.StatusCode}
-			if !retryableStatus(resp.StatusCode) {
+			if !retryable {
 				return err
 			}
+		} else if resp != nil {
+			releaseResponse(resp)
 		}
 		last = err
 		if i+1 < w.attempts {
-			if err := w.policy.Wait(ctx, i+1); err != nil {
-				return err
+			if waitErr := w.policy.Wait(ctx, i+1); waitErr != nil {
+				return fmt.Errorf("deliver webhook: %w", waitErr)
 			}
 		}
 	}
-	return fmt.Errorf("deliver webhook: %v", last)
+	return fmt.Errorf("deliver webhook: %w", last)
 }
