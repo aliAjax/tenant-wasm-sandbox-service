@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+gofmt -w .
+go test ./...
+go vet ./...
+go build ./...
+lines=$(find . -name '*.go' ! -name '*_test.go' -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}')
+test "$lines" -ge 2300
+printf 'verified %s non-test Go source lines\n' "$lines"
