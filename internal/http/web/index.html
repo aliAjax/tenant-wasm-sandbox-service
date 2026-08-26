@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>WASM Sandbox Console</title>
+  <link rel="stylesheet" href="/console/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/console" aria-label="WASM Sandbox Console">
+      <span class="brand-mark" aria-hidden="true">W</span>
+      <span><strong>WASM Sandbox</strong><small>Control plane</small></span>
+    </a>
+    <div class="health" id="health"><span class="health-dot"></span><span>Connecting</span></div>
+  </header>
+
+  <main>
+    <section class="page-heading">
+      <div>
+        <p class="eyebrow">Runtime operations</p>
+        <h1>Execution overview</h1>
+      </div>
+      <button class="icon-button" id="refresh" type="button" title="Refresh data" aria-label="Refresh data">&#8635;</button>
+    </section>
+
+    <section class="access-panel" aria-labelledby="access-title">
+      <div>
+        <h2 id="access-title">API access</h2>
+        <p>The token stays in this browser session.</p>
+      </div>
+      <form id="token-form">
+        <label for="token">Bearer token</label>
+        <div class="token-row">
+          <input id="token" name="token" type="password" autocomplete="off" value="dev-secret">
+          <button type="submit">Connect</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="metrics-grid" aria-label="Service metrics">
+      <article><span>Node state</span><strong id="node-state">Unknown</strong><small id="node-name">Awaiting connection</small></article>
+      <article><span>Queue depth</span><strong id="queue-depth">-</strong><small>Pending executions</small></article>
+      <article><span>Cache entries</span><strong id="cache-entries">-</strong><small>Compiled modules</small></article>
+      <article><span>Executions</span><strong id="execution-count">-</strong><small>Latest 50 records</small></article>
+    </section>
+
+    <section class="data-band">
+      <div class="section-heading">
+        <div><p class="eyebrow">Recent activity</p><h2>Executions</h2></div>
+        <span id="updated-at">Not loaded</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>Tenant</th><th>Module</th><th>Status</th><th>Created</th></tr></thead>
+          <tbody id="executions"><tr><td colspan="5" class="empty">Connect to load execution data.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/console/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "operation": "upper",
+  "instruction_cost": 800,
+  "memory_pages": 2,
+  "stack_bytes": 8192,
+  "delay_millis": 40,
+  "output_repeat": 1,
+  "exit_code": 0
+}
