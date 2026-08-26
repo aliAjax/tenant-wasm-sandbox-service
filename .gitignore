@@ -1,0 +1,5 @@
+/data/
+/wasm-sandbox-executor
+*.log
+*.out
+.DS_Store

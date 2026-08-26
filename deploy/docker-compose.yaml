@@ -1,0 +1,29 @@
+services:
+  executor:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      WASM_HTTP_ADDRESS: ":8080"
+      WASM_GRPC_ADDRESS: ":9090"
+      WASM_STATE_FILE: "/var/lib/wasm/state.json"
+      WASM_API_KEY: "change-me"
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    volumes:
+      - executor-data:/var/lib/wasm
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "/app/wasm-sandbox", "-help"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+volumes:
+  executor-data: {}
