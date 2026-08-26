@@ -42,6 +42,15 @@ func (m *Manager) Acquire(ctx context.Context, id, leaseID string, pages uint32)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	// The initial ctx.Err() check above runs before we hold the lock. If the
+	// caller was canceled while blocked waiting for the lock (for example by a
+	// concurrent Release, quota refresh, or tenant update holding the mutex),
+	// honoring the request now would mint a lease for a dead request. Re-check
+	// once we actually hold the lock so a cancellation during the wait still
+	// aborts the acquisition.
+	if err := ctx.Err(); err != nil {
+		return tenant.Lease{}, err
+	}
 	if err := m.reserveLeaseID(leaseID); err != nil {
 		return tenant.Lease{}, err
 	}
@@ -95,4 +104,14 @@ func (m *Manager) Set(id string, maxConcurrent int, maxCPU time.Duration, maxMem
 }
 func (m *Manager) Active() int { m.mu.Lock(); defer m.mu.Unlock(); return len(m.leases) }
 
-func (m *Manager) reserveLeaseID(string) error { return nil }
+// reserveLeaseID rejects a lease id that is already tracked. Reusing an id
+// while the previous lease is still live would silently overwrite the old
+// lease map entry while leaving its contribution to the tenant's Active
+// counter in place, double-charging the quota and losing track of the
+// original holder. Rejecting the duplicate keeps the bookkeeping paired.
+func (m *Manager) reserveLeaseID(leaseID string) error {
+	if _, ok := m.leases[leaseID]; ok {
+		return fmt.Errorf("%w: lease %s", ErrLeaseExists, leaseID)
+	}
+	return nil
+}
